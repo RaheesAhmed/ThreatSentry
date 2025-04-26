@@ -507,11 +507,11 @@ fn colorize_score(score: u8) -> colored::ColoredString {
 }
 
 fn run_gui(username: &str, password: &str) {
-    println!("{}", "\n[GUI MODE]".bright_blue());
-    println!("Launching graphical user interface...");
+    println!("{}", "\n[GUI]".bright_blue());
+    println!("Launching ThreatSentry Ultra GUI...");
 
     match gui::run_gui(username.to_string(), password.to_string()) {
-        Ok(_) => {},
-        Err(e) => println!("{} {}", "Error launching GUI:".bright_red(), e),
+        Ok(_) => println!("GUI closed successfully."),
+        Err(e) => println!("{} {}", "Error running GUI:".bright_red(), e),
     }
 }
