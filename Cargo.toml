@@ -32,5 +32,6 @@ colored = "2.0"
 indicatif = "0.17"
 
 # GUI
-eframe = "0.24.0"
+eframe = { version = "0.24.0", features = ["persistence"] }
 egui_plot = "0.24.0"
+winapi = { version = "0.3", features = ["winuser", "windef"] }

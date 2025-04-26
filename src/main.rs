@@ -2,12 +2,15 @@ mod email_monitor;
 mod mic_monitor;
 mod thermal_monitor;
 mod notification;
+mod gui;
+mod kernel_monitor;
 
 use clap::{Parser, Subcommand};
 use colored::*;
 use email_monitor::EmailMonitor;
 use mic_monitor::MicMonitor;
 use thermal_monitor::ThermalMonitor;
+use kernel_monitor::KernelMonitor;
 use notification::NotificationManager;
 use std::{thread, time::Duration};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -50,6 +53,13 @@ enum Commands {
         duration: u64,
     },
 
+    /// Monitor system processes and USB devices
+    Kernel {
+        /// Duration to monitor in seconds
+        #[arg(short, long, default_value_t = 60)]
+        duration: u64,
+    },
+
     /// Run all monitoring systems
     Full {
         /// Gmail username
@@ -63,6 +73,17 @@ enum Commands {
         /// Duration to monitor in seconds
         #[arg(short, long, default_value_t = 60)]
         duration: u64,
+    },
+
+    /// Launch the graphical user interface
+    Gui {
+        /// Gmail username
+        #[arg(short, long)]
+        username: String,
+
+        /// Gmail password or app password
+        #[arg(short, long)]
+        password: String,
     },
 }
 
@@ -81,8 +102,14 @@ fn main() {
         Some(Commands::Thermal { duration }) => {
             run_thermal_monitor(*duration);
         },
+        Some(Commands::Kernel { duration }) => {
+            run_kernel_monitor(*duration);
+        },
         Some(Commands::Full { username, password, duration }) => {
             run_full_scan(username, password, *duration);
+        },
+        Some(Commands::Gui { username, password }) => {
+            run_gui(username, password);
         },
         None => {
             println!("{}", "No command specified. Use --help for usage information.".yellow());
@@ -257,6 +284,91 @@ fn run_thermal_monitor(duration: u64) {
     }
 }
 
+fn run_kernel_monitor(duration: u64) {
+    println!("{}", "\n[KERNEL TELEMETRY]".bright_blue());
+    println!("Monitoring system processes and USB devices for {} seconds...", duration);
+
+    let kernel_monitor = KernelMonitor::new();
+    let notification_manager = NotificationManager::new();
+
+    // Start monitoring
+    match kernel_monitor.start_monitoring() {
+        Ok(_) => println!("Kernel monitoring started successfully"),
+        Err(e) => {
+            println!("{} {}", "Error starting kernel monitoring:".bright_red(), e);
+            return;
+        }
+    }
+
+    // Create a progress bar
+    let pb = ProgressBar::new(duration);
+    pb.set_style(ProgressStyle::default_bar()
+        .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} seconds")
+        .unwrap()
+        .progress_chars("#>-"));
+
+    for i in 0..duration {
+        // Get suspicious processes
+        let suspicious_processes = kernel_monitor.get_suspicious_processes();
+        if !suspicious_processes.is_empty() {
+            println!("\nSuspicious processes detected:");
+            for process in &suspicious_processes {
+                println!("  - {} (PID: {}, CPU: {:.1}%, Score: {})",
+                    process.name.bright_yellow(),
+                    process.pid,
+                    process.cpu_usage,
+                    colorize_score(process.suspicious_score));
+            }
+        }
+
+        // Get new USB devices
+        let new_usb_devices = kernel_monitor.get_new_usb_devices();
+        if !new_usb_devices.is_empty() {
+            println!("\nNew USB devices detected:");
+            for device in &new_usb_devices {
+                println!("  - {} (ID: {})",
+                    device.description.bright_yellow(),
+                    device.device_id);
+            }
+
+            // Send notification for new USB devices
+            let _ = notification_manager.send_notification(
+                "USB Device Detected",
+                &format!("{} new USB device(s) connected", new_usb_devices.len()),
+                50,
+            );
+        }
+
+        // Sleep for 1 second
+        if i < duration - 1 {
+            thread::sleep(Duration::from_secs(1));
+        }
+
+        pb.inc(1);
+    }
+
+    pb.finish_with_message("Monitoring complete");
+
+    // Stop monitoring
+    kernel_monitor.stop_monitoring();
+
+    // Get threat score
+    let score = kernel_monitor.get_threat_score();
+
+    // Display results
+    println!("\nResults:");
+    println!("Kernel Threat Score: {}", colorize_score(score));
+
+    // Send notification for high scores
+    if score > 50 {
+        let _ = notification_manager.send_notification(
+            "ThreatSentry Ultra",
+            "Suspicious process or USB activity detected!",
+            score,
+        );
+    }
+}
+
 fn run_full_scan(username: &Option<String>, password: &Option<String>, duration: u64) {
     println!("{}", "\n[FULL SYSTEM SCAN]".bright_blue());
     println!("Running comprehensive threat scan for {} seconds...", duration);
@@ -264,6 +376,7 @@ fn run_full_scan(username: &Option<String>, password: &Option<String>, duration:
     // Initialize monitors
     let mic_monitor = MicMonitor::new();
     let mut thermal_monitor = ThermalMonitor::new();
+    let kernel_monitor = KernelMonitor::new();
 
     // Start microphone monitoring
     match mic_monitor.start_monitoring() {
@@ -272,6 +385,16 @@ fn run_full_scan(username: &Option<String>, password: &Option<String>, duration:
         },
         Err(e) => {
             println!("{} {}", "Error starting microphone monitoring:".bright_red(), e);
+        }
+    }
+
+    // Start kernel monitoring
+    match kernel_monitor.start_monitoring() {
+        Ok(_) => {
+            println!("{}", "Kernel monitoring started".green());
+        },
+        Err(e) => {
+            println!("{} {}", "Error starting kernel monitoring:".bright_red(), e);
         }
     }
 
@@ -302,9 +425,13 @@ fn run_full_scan(username: &Option<String>, password: &Option<String>, duration:
     // Stop microphone monitoring
     mic_monitor.stop_monitoring();
 
+    // Stop kernel monitoring
+    kernel_monitor.stop_monitoring();
+
     // Get results
     let mic_score = mic_monitor.get_threat_score();
     let thermal_score = thermal_monitor.get_threat_score();
+    let kernel_score = kernel_monitor.get_threat_score();
 
     // Run email scan if credentials provided
     let mut email_score = 0;
@@ -348,13 +475,14 @@ fn run_full_scan(username: &Option<String>, password: &Option<String>, duration:
     }
 
     // Calculate combined threat score
-    let combined_score = (mic_score as u16 + thermal_score as u16 + email_score as u16) / 3;
+    let combined_score = (mic_score as u16 + thermal_score as u16 + kernel_score as u16 + email_score as u16) / 4;
 
     // Display final results
     println!("\n{}", "FINAL RESULTS".bright_yellow());
     println!("---------------------");
     println!("Microphone Threat Score: {}", colorize_score(mic_score));
     println!("Thermal Threat Score: {}", colorize_score(thermal_score));
+    println!("Kernel Threat Score: {}", colorize_score(kernel_score));
     println!("Email Threat Score: {}", colorize_score(email_score));
     println!("---------------------");
     println!("Combined Threat Score: {}", colorize_score(combined_score as u8));
@@ -375,5 +503,15 @@ fn colorize_score(score: u8) -> colored::ColoredString {
         0..=30 => score.to_string().green(),
         31..=70 => score.to_string().yellow(),
         _ => score.to_string().red(),
+    }
+}
+
+fn run_gui(username: &str, password: &str) {
+    println!("{}", "\n[GUI MODE]".bright_blue());
+    println!("Launching graphical user interface...");
+
+    match gui::run_gui(username.to_string(), password.to_string()) {
+        Ok(_) => {},
+        Err(e) => println!("{} {}", "Error launching GUI:".bright_red(), e),
     }
 }
