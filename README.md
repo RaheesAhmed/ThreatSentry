@@ -5,6 +5,11 @@
 ![ThreatSentry Ultra](https://img.shields.io/badge/ThreatSentry-Ultra-blue)
 ![Rust](https://img.shields.io/badge/Built%20with-Rust-orange)
 ![License](https://img.shields.io/badge/License-MIT-green)
+![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-blue)
+![Privacy](https://img.shields.io/badge/Privacy-First-orange)
+![Offline](https://img.shields.io/badge/Works%20Offline-Yes-brightgreen)
+
+![ThreatSentry Ultra Banner](assets/screenshot.png)
 
 ## Features
 
@@ -21,6 +26,39 @@
 📊 **Real-time Dashboard**: Interactive GUI with real-time graphs and threat visualization.
 
 🔒 **Privacy-First**: All processing happens locally—no data leaves your laptop.
+
+## 📸 Screenshots
+
+|               Dashboard                |                CLI Alerts                |
+| :------------------------------------: | :--------------------------------------: |
+| ![dashboard.png](assets/dashboard.png) | ![cli_alerts.png](assets/cli_alerts.png) |
+
+![ThreatSentry Demo](assets/demo.gif)
+
+## 🧠 Why ThreatSentry Ultra?
+
+Because cyber threats today are _hardware + software_ combined.
+Traditional antivirus tools miss:
+
+- Ultrasonic malware
+- Local crypto miners
+- Phishing at the first email hop
+
+ThreatSentry Ultra watches _everything_ — without selling your data to the cloud.
+
+Built for real defenders. Built for those who trust no one.
+
+## 🛤️ Roadmap
+
+- [x] Microphone Monitoring
+- [x] Thermal Tracking
+- [x] Kernel Telemetry
+- [x] Email Scanning
+- [x] Desktop Alerts
+- [x] Real-time Dashboard
+- [ ] Rogue Wi-Fi Detection (coming soon)
+- [ ] USB Device Trap Monitoring (coming soon)
+- [ ] Accelerometer Anti-Tamper Detection (future idea)
 
 ## Installation
 
